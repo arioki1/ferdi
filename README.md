@@ -14,7 +14,7 @@
 <p align="center">
 <img alt="GitHub Releases" src="https://img.shields.io/github/downloads/getferdi/ferdi/latest/total?label=Downloads&logo=iCloud&logoColor=%23FFFFFF">
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-<a href='#contributors-'><img src='https://img.shields.io/badge/contributors-85-default.svg?logo=github' alt='Contributors'/></a>
+<a href='#contributors-'><img src='https://img.shields.io/badge/contributors-87-default.svg?logo=github' alt='Contributors'/></a>
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <a href="#backers-via-opencollective"><img alt="Open Collective backers" src="https://img.shields.io/opencollective/backers/getferdi?logo=open-collective"></a>
 <a href="#sponsors-via-opencollective"><img alt="Open Collective sponsors" src="https://img.shields.io/opencollective/sponsors/getferdi?logo=open-collective"></a>
@@ -238,13 +238,13 @@ The version [2.23.0](https://github.com/git-for-windows/git/releases/tag/v2.23.0
 #### Debian/Ubuntu
 
 ```bash
-$ apt install libx11-dev libxext-dev libxss-dev libxkbfile-dev
+$ apt install libx11-dev libxext-dev libxss-dev libxkbfile-dev rpm
 ```
 
 #### Fedora
 
 ```bash
-$ dnf install libX11-devel libXext-devel libXScrnSaver-devel libxkbfile-devel
+$ dnf install libX11-devel libXext-devel libXScrnSaver-devel libxkbfile-devel rpm
 ```
 
 #### Windows
@@ -298,6 +298,15 @@ Ferdi requires its recipes to be packaged before it can use it. When running Fer
 $ cd recipes
 $ npm install && npm run package
 ```
+
+### Using Docker to build a package
+
+```bash
+$ docker build -t ferdi-package .
+$ docker run -v tmp-out:/ferdi-out -it ferdi-package sh
+```
+
+The above will place all the built artifacts into the `/ferdi` folder within the image. If you want to copy them outside of the image, simply mount a volume into a different location, and copy all files from `/ferdi` into the mounted folder (`/ferdi-out` in the 2nd example command above).
 
 ### Start development app
 
@@ -465,6 +474,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/vraravam"><img src="https://avatars.githubusercontent.com/u/69629?v=4?s=40" width="40px;" alt=""/><br /><sub><b>Vijay Raghavan Aravamudhan</b></sub></a><br /><a href="#maintenance-vraravam" title="Maintenance">🚧</a> <a href="https://github.com/getferdi/ferdi/commits?author=vraravam" title="Documentation">📖</a> <a href="https://github.com/getferdi/ferdi/commits?author=vraravam" title="Code">💻</a> <a href="#mentoring-vraravam" title="Mentoring">🧑‍🏫</a> <a href="https://github.com/getferdi/ferdi/pulls?q=is%3Apr+reviewed-by%3Avraravam" title="Reviewed Pull Requests">👀</a> <a href="#infra-vraravam" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
+    <td align="center"><a href="https://dustin.meecolabs.eu/"><img src="https://avatars.githubusercontent.com/u/124467?v=4?s=40" width="40px;" alt=""/><br /><sub><b>Dustin</b></sub></a><br /><a href="#design-alopix" title="Design">🎨</a></td>
+    <td align="center"><a href="https://github.com/jakobsudau"><img src="https://avatars.githubusercontent.com/u/721715?v=4?s=40" width="40px;" alt=""/><br /><sub><b>Jakob Felix Julius Sudau</b></sub></a><br /><a href="#design-jakobsudau" title="Design">🎨</a></td>
   </tr>
 </table>
 
