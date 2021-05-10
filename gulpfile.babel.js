@@ -11,17 +11,22 @@ import connect from 'gulp-connect';
 import { exec } from 'child_process';
 import dotenv from 'dotenv';
 import sassVariables from 'gulp-sass-variables';
-import { removeSync } from 'fs-extra';
+import { removeSync, outputJson } from 'fs-extra';
 import kebabCase from 'kebab-case';
 import hexRgb from 'hex-rgb';
 
 import config from './package.json';
 
 import * as rawStyleConfig from './src/theme/default/legacy.js';
+import * as buildInfo from 'preval-build-info';
 
 dotenv.config();
 
 const uglify = composer(terser, console);
+
+const isDevBuild = ((process.env.NODE_ENV || 'development').trim().toLowerCase() === 'development');
+
+const getTargetEnv = isDevBuild ? 'development' : 'production';
 
 const styleConfig = Object.keys(rawStyleConfig).map((key) => {
   const isHex = /^#[0-9A-F]{6}$/i.test(rawStyleConfig[key]);
@@ -38,7 +43,9 @@ const paths = {
   src: 'src',
   dest: 'build',
   tmp: '.tmp',
+  dist: 'out',
   package: `out/${config.version}`,
+  buildInfoDestFile: 'build/buildInfo.json',
   recipes: {
     src: 'recipes/archives/*.tar.gz',
     dest: 'build/recipes/',
@@ -103,6 +110,7 @@ function _shell(cmd, cb) {
 const clean = (done) => {
   removeSync(paths.tmp);
   removeSync(paths.dest);
+  removeSync(paths.dist);
 
   done();
 };
@@ -131,10 +139,19 @@ export function mvLernaPackages() {
   return gulp.src(['packages/**']).pipe(gulp.dest(`${paths.dest}/packages`));
 }
 
+export function exportBuildInfo() {
+  var buildInfoData = {
+    timestamp: buildInfo.timestamp,
+    gitHashShort: buildInfo.gitHashShort,
+    gitBranch: buildInfo.gitBranch,
+  };
+  return outputJson(paths.buildInfoDestFile, buildInfoData);
+}
+
 export function html() {
   return gulp
     .src(paths.html.src, { since: gulp.lastRun(html) })
-    .pipe(gulpIf(process.env.NODE_ENV !== 'development', htmlMin({ // Only minify in production to speed up dev builds
+    .pipe(gulpIf(!isDevBuild, htmlMin({ // Only minify in production to speed up dev builds
       collapseWhitespace: true,
       removeComments: true,
     })))
@@ -149,10 +166,7 @@ export function styles() {
       sassVariables(
         Object.assign(
           {
-            $env:
-              process.env.NODE_ENV === 'development'
-                ? 'development'
-                : 'production',
+            $env: getTargetEnv,
           },
           ...styleConfig,
         ),
@@ -163,7 +177,7 @@ export function styles() {
         includePaths: ['./node_modules', '../node_modules'],
       }).on('error', sass.logError),
     )
-    .pipe((gulpIf(process.env.NODE_ENV !== 'development', csso({ // Only minify in production to speed up dev builds
+    .pipe((gulpIf(!isDevBuild, csso({ // Only minify in production to speed up dev builds
       restructure: false, // Don't restructure CSS, otherwise it will break the styles
     }))))
     .pipe(gulp.dest(paths.styles.dest))
@@ -177,10 +191,7 @@ export function verticalStyle() {
       sassVariables(
         Object.assign(
           {
-            $env:
-              process.env.NODE_ENV === 'development'
-                ? 'development'
-                : 'production',
+            $env: getTargetEnv,
           },
           ...styleConfig,
         ),
@@ -191,7 +202,7 @@ export function verticalStyle() {
         includePaths: ['./node_modules', '../node_modules'],
       }).on('error', sass.logError),
     )
-    .pipe((gulpIf(process.env.NODE_ENV !== 'development', csso({ // Only minify in production to speed up dev builds
+    .pipe((gulpIf(!isDevBuild, csso({ // Only minify in production to speed up dev builds
       restructure: false, // Don't restructure CSS, otherwise it will break the styles
     }))))
     .pipe(gulp.dest(paths.verticalStyle.dest))
@@ -206,7 +217,7 @@ export function scripts() {
         comments: false,
       }),
     )
-    .pipe(gulpIf(process.env.NODE_ENV !== 'development', uglify())) // Only uglify in production to speed up dev builds
+    .pipe(gulpIf(!isDevBuild, uglify())) // Only uglify in production to speed up dev builds
     .pipe(gulp.dest(paths.scripts.dest))
     .pipe(connect.reload());
 }
@@ -239,7 +250,7 @@ export function recipeInfo() {
 
 const build = gulp.series(
   clean,
-  gulp.parallel(mvSrc, mvPackageJson, mvLernaPackages),
+  gulp.parallel(mvSrc, mvPackageJson, mvLernaPackages, exportBuildInfo),
   gulp.parallel(html, scripts, styles, verticalStyle, recipes, recipeInfo),
 );
 export { build };
