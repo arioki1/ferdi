@@ -1,7 +1,9 @@
 import { clipboard, remote, shell } from 'electron';
 import { autorun, observable } from 'mobx';
 import { defineMessages } from 'react-intl';
-import { cmdKey, ctrlKey, isMac } from '../environment';
+import {
+  cmdKey, ctrlKey, isLinux, isMac,
+} from '../environment';
 import { announcementsStore } from '../features/announcements';
 import { announcementActions } from '../features/announcements/actions';
 import { todosStore } from '../features/todos';
@@ -924,15 +926,15 @@ export default class FranzMenu {
       });
 
       if (serviceTpl.length > 0) {
-        tpl[3].submenu = serviceTpl;
+        tpl[2].submenu = serviceTpl;
       }
 
       if (workspaceStore.isFeatureEnabled) {
-        tpl[4].submenu = this.workspacesMenu();
+        tpl[3].submenu = this.workspacesMenu();
       }
 
       if (todosStore.isFeatureEnabled) {
-        tpl[5].submenu = this.todosMenu();
+        tpl[4].submenu = this.todosMenu();
       }
     } else {
       const touchIdEnabled = isMac ? (this.stores.settings.app.useTouchIdToUnlock && systemPreferences.canPromptTouchID()) : false;
@@ -1113,6 +1115,7 @@ export default class FranzMenu {
     const { user, services, settings } = this.stores;
     if (!user.isLoggedIn) return [];
     const menu = [];
+    const cmdAltShortcutsVisibile = !isLinux;
 
     menu.push({
       label: intl.formatMessage(menuItems.addNewService),
@@ -1124,12 +1127,24 @@ export default class FranzMenu {
       type: 'separator',
     }, {
       label: intl.formatMessage(menuItems.activateNextService),
+      accelerator: `${cmdKey}+tab`,
+      click: () => this.actions.service.setActiveNext(),
+      visible: !cmdAltShortcutsVisibile,
+    }, {
+      label: intl.formatMessage(menuItems.activateNextService),
       accelerator: `${cmdKey}+alt+right`,
       click: () => this.actions.service.setActiveNext(),
+      visible: cmdAltShortcutsVisibile,
+    }, {
+      label: intl.formatMessage(menuItems.activatePreviousService),
+      accelerator: `${cmdKey}+shift+tab`,
+      click: () => this.actions.service.setActivePrev(),
+      visible: !cmdAltShortcutsVisibile,
     }, {
       label: intl.formatMessage(menuItems.activatePreviousService),
       accelerator: `${cmdKey}+alt+left`,
       click: () => this.actions.service.setActivePrev(),
+      visible: cmdAltShortcutsVisibile,
     }, {
       label: intl.formatMessage(
         settings.all.app.isAppMuted ? menuItems.unmuteApp : menuItems.muteApp,

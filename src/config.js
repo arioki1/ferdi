@@ -1,6 +1,8 @@
 import electron from 'electron';
+import isDevMode from 'electron-is-dev';
 import ms from 'ms';
 import path from 'path';
+import { DEFAULT_ACCENT_COLOR } from '@meetfranz/theme';
 import { asarPath } from './helpers/asar-helpers';
 
 const app = process.type === 'renderer' ? electron.remote.app : electron.app;
@@ -127,7 +129,7 @@ export const DEFAULT_APP_SETTINGS = {
   showServiceNavigationBar: false,
   universalDarkMode: true,
   adaptableDarkMode: true,
-  accentColor: '#7266F0',
+  accentColor: DEFAULT_ACCENT_COLOR,
   serviceRibbonWidth: 68,
   iconSize: iconSizeBias,
   sentry: false,
@@ -171,6 +173,7 @@ export const FILE_SYSTEM_SETTINGS_TYPES = [
 export const LOCAL_SERVER = 'You are using Ferdi without a server';
 export const SERVER_NOT_LOADED = 'Ferdi::SERVER_NOT_LOADED';
 
+// TODO: This seems to be duplicated between here and 'index.js'
 // Set app directory before loading user modules
 if (process.env.FERDI_APPDATA_DIR != null) {
   app.setPath('appData', process.env.FERDI_APPDATA_DIR);
@@ -181,6 +184,10 @@ if (process.env.FERDI_APPDATA_DIR != null) {
 } else if (process.platform === 'win32') {
   app.setPath('appData', process.env.APPDATA);
   app.setPath('userData', path.join(app.getPath('appData'), app.name));
+}
+
+if (isDevMode) {
+  app.setPath('userData', path.join(app.getPath('appData'), `${app.name}Dev`));
 }
 
 export const SETTINGS_PATH = path.join(app.getPath('userData'), 'config');

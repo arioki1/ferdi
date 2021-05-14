@@ -10,7 +10,9 @@ import fs from 'fs-extra';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
 import { enforceMacOSAppLocation } from 'electron-util';
+import ms from 'ms';
 
+// TODO: This seems to be duplicated between here and 'config.js'
 // Set app directory before loading user modules
 if (process.env.FERDI_APPDATA_DIR != null) {
   app.setPath('appData', process.env.FERDI_APPDATA_DIR);
@@ -60,10 +62,6 @@ const debug = require('debug')('Ferdi:App');
 // Electron Windows Notification API crashing. Setting this to false fixes the issue until the electron team fixes the notification bug
 // More Info - https://github.com/electron/electron/issues/18397
 app.allowRendererProcessReuse = false;
-
-// Globally set useragent to fix user agent override in service workers
-debug('Set userAgent to ', userAgent());
-app.userAgentFallback = userAgent();
 
 // Globally set useragent to fix user agent override in service workers
 debug('Set userAgent to ', userAgent());
@@ -186,12 +184,7 @@ const createWindow = () => {
   }
 
   // Create the browser window.
-  let backgroundColor = '#7266F0';
-  if (settings.get('accentColor') !== '#7266F0') {
-    backgroundColor = settings.get('accentColor');
-  } else if (settings.get('darkMode')) {
-    backgroundColor = '#1E1E1E';
-  }
+  const backgroundColor = settings.get('darkMode') ? '#1E1E1E' : settings.get('accentColor');
 
   mainWindow = new BrowserWindow({
     x: posX,
@@ -336,7 +329,7 @@ const createWindow = () => {
   });
 
   if (isMac) {
-    askFormacOSPermissions();
+    setTimeout(() => askFormacOSPermissions(mainWindow), ms('30s'));
   }
 
   mainWindow.on('show', () => {
