@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { inject, observer } from 'mobx-react';
@@ -25,6 +24,7 @@ import globalMessages from '../../i18n/globalMessages';
 import { DEFAULT_IS_FEATURE_ENABLED_BY_USER } from '../../features/todos';
 import WorkspacesStore from '../../features/workspaces/store';
 import { DEFAULT_SETTING_KEEP_ALL_WORKSPACES_LOADED } from '../../features/workspaces';
+import ServicesStore from '../../stores/ServicesStore';
 
 const messages = defineMessages({
   autoLaunchOnStart: {
@@ -55,9 +55,17 @@ const messages = defineMessages({
     id: 'settings.app.form.minimizeToSystemTray',
     defaultMessage: '!!!Minimize Ferdi to system tray',
   },
+  closeToSystemTray: {
+    id: 'settings.app.form.closeToSystemTray',
+    defaultMessage: '!!!Close Ferdi to system tray',
+  },
   privateNotifications: {
     id: 'settings.app.form.privateNotifications',
     defaultMessage: '!!!Don\'t show message content in notifications',
+  },
+  notifyTaskBarOnMessage: {
+    id: 'settings.app.form.notifyTaskBarOnMessage',
+    defaultMessage: '!!!Notify TaskBar/Dock on new message',
   },
   navigationBarBehaviour: {
     id: 'settings.app.form.navigationBarBehaviour',
@@ -138,6 +146,14 @@ const messages = defineMessages({
   iconSize: {
     id: 'settings.app.form.iconSize',
     defaultMessage: '!!!Service icon size',
+  },
+  useVerticalStyle: {
+    id: 'settings.app.form.useVerticalStyle',
+    defaultMessage: '!!!Use vertical style',
+  },
+  alwaysShowWorkspaces: {
+    id: 'settings.app.form.alwaysShowWorkspaces',
+    defaultMessage: '!!!Always show workspace drawer',
   },
   accentColor: {
     id: 'settings.app.form.accentColor',
@@ -221,7 +237,9 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         reloadAfterResume: settingsData.reloadAfterResume,
         startMinimized: settingsData.startMinimized,
         minimizeToSystemTray: settingsData.minimizeToSystemTray,
+        closeToSystemTray: settingsData.closeToSystemTray,
         privateNotifications: settingsData.privateNotifications,
+        notifyTaskBarOnMessage: settingsData.notifyTaskBarOnMessage,
         navigationBarBehaviour: settingsData.navigationBarBehaviour,
         sentry: settingsData.sentry,
         hibernate: settingsData.hibernate,
@@ -243,6 +261,8 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         universalDarkMode: settingsData.universalDarkMode,
         serviceRibbonWidth: settingsData.serviceRibbonWidth,
         iconSize: settingsData.iconSize,
+        useVerticalStyle: settingsData.useVerticalStyle,
+        alwaysShowWorkspaces: settingsData.alwaysShowWorkspaces,
         accentColor: settingsData.accentColor,
         showMessageBadgeWhenMuted: settingsData.showMessageBadgeWhenMuted,
         showDragArea: settingsData.showDragArea,
@@ -275,10 +295,6 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         todosActions.toggleTodosFeatureVisibility();
       }
     }
-  }
-
-  openProcessManager() {
-    ipcRenderer.send('openProcessManager');
   }
 
   prepareForm() {
@@ -359,10 +375,20 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           value: settings.all.app.minimizeToSystemTray,
           default: DEFAULT_APP_SETTINGS.minimizeToSystemTray,
         },
+        closeToSystemTray: {
+          label: intl.formatMessage(messages.closeToSystemTray),
+          value: settings.all.app.closeToSystemTray,
+          default: DEFAULT_APP_SETTINGS.closeToSystemTray,
+        },
         privateNotifications: {
           label: intl.formatMessage(messages.privateNotifications),
           value: settings.all.app.privateNotifications,
           default: DEFAULT_APP_SETTINGS.privateNotifications,
+        },
+        notifyTaskBarOnMessage: {
+          label: intl.formatMessage(messages.notifyTaskBarOnMessage),
+          value: settings.all.app.notifyTaskBarOnMessage,
+          default: DEFAULT_APP_SETTINGS.notifyTaskBarOnMessage,
         },
         navigationBarBehaviour: {
           label: intl.formatMessage(messages.navigationBarBehaviour),
@@ -494,6 +520,16 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           default: DEFAULT_APP_SETTINGS.iconSize,
           options: iconSizes,
         },
+        useVerticalStyle: {
+          label: intl.formatMessage(messages.useVerticalStyle),
+          value: settings.all.app.useVerticalStyle,
+          default: DEFAULT_APP_SETTINGS.useVerticalStyle,
+        },
+        alwaysShowWorkspaces: {
+          label: intl.formatMessage(messages.alwaysShowWorkspaces),
+          value: settings.all.app.alwaysShowWorkspaces,
+          default: DEFAULT_APP_SETTINGS.alwaysShowWorkspaces,
+        },
         accentColor: {
           label: intl.formatMessage(messages.accentColor),
           value: settings.all.app.accentColor,
@@ -547,10 +583,10 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
       app,
       todos,
       workspaces,
+      services,
     } = this.props.stores;
     const {
       updateStatus,
-      cacheSize,
       updateStatusTypes,
       isClearingAllCache,
       lockingFeatureEnabled,
@@ -573,7 +609,7 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           noUpdateAvailable={updateStatus === updateStatusTypes.NOT_AVAILABLE}
           updateIsReadyToInstall={updateStatus === updateStatusTypes.DOWNLOADED}
           onSubmit={d => this.onSubmit(d)}
-          cacheSize={cacheSize}
+          getCacheSize={() => app.cacheSize}
           isClearingAllCache={isClearingAllCache}
           onClearAllCache={clearAllCache}
           isSpellcheckerIncludedInCurrentPlan={spellcheckerConfig.isIncludedInCurrentPlan}
@@ -586,7 +622,9 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           isAdaptableDarkModeEnabled={this.props.stores.settings.app.adaptableDarkMode}
           isTodosActivated={this.props.stores.todos.isFeatureEnabledByUser}
           isUsingCustomTodoService={this.props.stores.todos.isUsingCustomTodoService}
-          openProcessManager={() => this.openProcessManager()}
+          isNightlyEnabled={this.props.stores.settings.app.nightly}
+          hasAddedTodosAsService={services.isTodosServiceAdded}
+          isOnline={app.isOnline}
         />
       </ErrorBoundary>
     );
@@ -598,6 +636,7 @@ EditSettingsScreen.wrappedComponent.propTypes = {
     app: PropTypes.instanceOf(AppStore).isRequired,
     user: PropTypes.instanceOf(UserStore).isRequired,
     settings: PropTypes.instanceOf(SettingsStore).isRequired,
+    services: PropTypes.instanceOf(ServicesStore).isRequired,
     todos: PropTypes.instanceOf(TodosStore).isRequired,
     workspaces: PropTypes.instanceOf(WorkspacesStore).isRequired,
   }).isRequired,

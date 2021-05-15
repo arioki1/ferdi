@@ -11,11 +11,18 @@ matrix:
             - libxss-dev
             - libxkbfile-dev
             - rpm
+      env:
+        - ELECTRON_CACHE=$HOME/.cache/electron
+        - ELECTRON_BUILDER_CACHE=$HOME/.cache/electron-builder
     - os: osx
-      if: branch IN (nightly, release)
-      osx_image: xcode11
+      osx_image: xcode12.4
+      env:
+        - ELECTRON_CACHE=$HOME/.cache/electron
+        - ELECTRON_BUILDER_CACHE=$HOME/.cache/electron-builder
 
 language: node_js
+node_js: "14.16.1"
+
 git:
   submodules: false
 branches:
@@ -23,26 +30,55 @@ branches:
     - develop
     - release
     - nightly
-cache: npm
+cache:
+  directories:
+    - node_modules
+    - $HOME/.cache/electron
+    - $HOME/.cache/electron-builder
 
 before_install:
   - git submodule update --init --recursive
-install:
-  - travis_retry npx lerna bootstrap
-  - travis_retry npm install node-sass -g
-before_script:
-  - npm run lint && npm run test
-script:
-  - |
-    if [ $TRAVIS_BRANCH == "release" ]; then
-      travis_retry travis_wait 100 npm run build 
-    fi
   - |
     if [ $TRAVIS_BRANCH == "nightly" ]; then
-      npm version prerelease --preid=nightly -m "%s [skip ci]"
-      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=getferdi -c.publish.repo=nightlies
+      git remote add source https://${GH_TOKEN}@github.com/arioki1/ferdi.git > /dev/null 2>&1
+      git fetch source
+      git merge --no-ff --commit -m "Merge remote-tracking branch 'source/develop' into HEAD [skip ci]" source/develop
+      CHANGES_COUNT=$(git diff --stat HEAD origin/nightly | wc -l)
+      echo "Travis event type: $TRAVIS_EVENT_TYPE"
+      echo "Number of changes: $CHANGES_COUNT"
+      if [ $CHANGES_COUNT -eq 0 -a $TRAVIS_EVENT_TYPE == "cron" ]; then
+        echo "Terminating the build since there are no changes in a cron-triggered build"
+        travis_terminate 0
+      else
+        echo "Found changes, proceeding with submodule updates"
+        git submodule update --remote --force
+        git commit -am "Update submodules [skip ci]" || true
+      fi
+      echo "Completed merging from develop branch and upgrading submodules"
+    fi
+install:
+  - npm cache clean -f || travis_terminate 1
+  - npm uninstall node-gyp && travis_retry npm install -g node-gyp@8.0.0 || travis_terminate 1
+  - npm uninstall node-sass && travis_retry npm install -g node-sass@5.0.0 || travis_terminate 1
+  - cd recipes && npm install && npm run package && cd .. || travis_terminate 1
+  - travis_retry npx lerna bootstrap || travis_terminate 1
+before_script:
+  - npm run lint && npm run test || travis_terminate 1
+script:
+  - |
+    echo "Building for branch: $TRAVIS_BRANCH"
+    if [ $TRAVIS_BRANCH == "release" ]; then
+      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=arioki1 -c.publish.repo=ferdi -c.mac.identity=null || travis_terminate 1
+    elif [ $TRAVIS_BRANCH == "nightly" ]; then
+      git commit -am "Apply linter fixes [skip ci]"
+      npm version prerelease --preid=nightly -m "%s and trigger AppVeyor nightly build [skip travisci]" || travis_terminate 1
+      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=arioki1 -c.publish.repo=nightlies || travis_terminate 1
       if [ $TRAVIS_OS_NAME == "osx" ]; then
-        git remote add nightly https://${GH_TOKEN}@github.com/getferdi/ferdi.git > /dev/null 2>&1
-        git push --quiet --set-upstream nightly HEAD:nightly >/dev/null 2>&1
+        git remote add nightly https://${GH_TOKEN}@github.com/arioki1/ferdi.git > /dev/null 2>&1
+        git push -qu nightly HEAD:nightly >/dev/null 2>&1
+      fi
+    else
+      if [ $TRAVIS_PULL_REQUEST_BRANCH != "i18n" ]; then
+        travis_retry travis_wait 100 npm run build || travis_terminate 1
       fi
     fi

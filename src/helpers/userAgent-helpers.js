@@ -5,7 +5,7 @@ import { isMac, isWindows } from '../environment';
 
 // This helper gets included from the backend and frontend but we only need to use "remote"
 // if we are in the frontend
-const ferdiVersion = remote && remote.app ? remote.app.getVersion() : app.getVersion();
+export const ferdiVersion = remote && remote.app ? remote.app.getVersion() : app.getVersion();
 
 function macOS() {
   const version = macosVersion();
@@ -19,10 +19,10 @@ function windows() {
 }
 
 function linux() {
-  return 'X11; Linux x86_64';
+  return 'X11; Ubuntu; Linux x86_64';
 }
 
-export default function userAgent(removeChromeVersion = false) {
+export default function userAgent(removeChromeVersion = false, addFerdiVersion = false) {
   let platformString = '';
 
   if (isMac) {
@@ -39,7 +39,7 @@ export default function userAgent(removeChromeVersion = false) {
   }
 
   let applicationString = '';
-  if (!removeChromeVersion) {
+  if (addFerdiVersion) {
     applicationString = ` Ferdi/${ferdiVersion} Electron/${process.versions.electron}`;
   }
 

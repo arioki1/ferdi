@@ -2,16 +2,21 @@ import { remote } from 'electron';
 import React, { Component, Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { observer } from 'mobx-react';
+import prettyBytes from 'pretty-bytes';
 import { defineMessages, intlShape } from 'react-intl';
 
 import Form from '../../../lib/Form';
 import Button from '../../ui/Button';
 import Toggle from '../../ui/Toggle';
+import ToggleRaw from '../../ui/ToggleRaw';
 import Select from '../../ui/Select';
 import PremiumFeatureContainer from '../../ui/PremiumFeatureContainer';
 import Input from '../../ui/Input';
 
-import { FRANZ_TRANSLATION } from '../../../config';
+import {
+  DEFAULT_APP_SETTINGS,
+  FRANZ_TRANSLATION,
+} from '../../../config';
 import { isMac, isWindows } from '../../../environment';
 
 const {
@@ -81,7 +86,7 @@ const messages = defineMessages({
   },
   accentColorInfo: {
     id: 'settings.app.accentColorInfo',
-    defaultMessage: '!!!Write your accent color in a CSS-compatible format. (Default: #7367f0)',
+    defaultMessage: '!!!Write your accent color in a CSS-compatible format. (Default: {defaultAccentColor})',
   },
   headlineAdvanced: {
     id: 'settings.app.headlineAdvanced',
@@ -90,6 +95,10 @@ const messages = defineMessages({
   translationHelp: {
     id: 'settings.app.translationHelp',
     defaultMessage: '!!!Help us to translate Ferdi into your language.',
+  },
+  spellCheckerLanguageInfo: {
+    id: 'settings.app.spellCheckerLanguageInfo',
+    defaultMessage: '!!!Ferdi uses your Mac\'s build-in spellchecker to check for typos. If you want to change the languages the spellchecker checks for, you can do so in your Mac\'s System Preferences.',
   },
   subheadlineCache: {
     id: 'settings.app.subheadlineCache',
@@ -157,7 +166,7 @@ export default @observer class EditSettingsForm extends Component {
     updateIsReadyToInstall: PropTypes.bool.isRequired,
     isClearingAllCache: PropTypes.bool.isRequired,
     onClearAllCache: PropTypes.func.isRequired,
-    cacheSize: PropTypes.string.isRequired,
+    getCacheSize: PropTypes.func.isRequired,
     isSpellcheckerIncludedInCurrentPlan: PropTypes.bool.isRequired,
     isTodosEnabled: PropTypes.bool.isRequired,
     isTodosActivated: PropTypes.bool.isRequired,
@@ -166,7 +175,9 @@ export default @observer class EditSettingsForm extends Component {
     hibernationEnabled: PropTypes.bool.isRequired,
     isDarkmodeEnabled: PropTypes.bool.isRequired,
     isAdaptableDarkModeEnabled: PropTypes.bool.isRequired,
-    openProcessManager: PropTypes.func.isRequired,
+    isNightlyEnabled: PropTypes.bool.isRequired,
+    hasAddedTodosAsService: PropTypes.bool.isRequired,
+    isOnline: PropTypes.bool.isRequired,
   };
 
   static contextTypes = {
@@ -211,15 +222,17 @@ export default @observer class EditSettingsForm extends Component {
       updateIsReadyToInstall,
       isClearingAllCache,
       onClearAllCache,
-      cacheSize,
+      getCacheSize,
       isSpellcheckerIncludedInCurrentPlan,
       isTodosEnabled,
       isWorkspaceEnabled,
       automaticUpdates,
       hibernationEnabled,
       isDarkmodeEnabled,
-      openProcessManager,
       isTodosActivated,
+      isNightlyEnabled,
+      hasAddedTodosAsService,
+      isOnline,
     } = this.props;
     const { intl } = this.context;
 
@@ -236,7 +249,20 @@ export default @observer class EditSettingsForm extends Component {
       lockingFeatureEnabled,
       scheduledDNDEnabled,
     } = window.ferdi.stores.settings.all.app;
-    const notCleared = this.state.clearCacheButtonClicked && isClearingAllCache === false && cacheSize !== 0;
+
+    let cacheSize;
+    let notCleared;
+    if (this.state.activeSetttingsTab === 'advanced') {
+      const cacheSizeBytes = getCacheSize();
+      if (typeof cacheSizeBytes === 'number') {
+        cacheSize = prettyBytes(cacheSizeBytes);
+        notCleared = this.state.clearCacheButtonClicked && isClearingAllCache === false && cacheSizeBytes !== 0;
+      } else {
+        cacheSize = '…';
+        notCleared = false;
+      }
+    }
+
     return (
       <div className="settings__main">
         <div className="settings__header">
@@ -295,10 +321,15 @@ export default @observer class EditSettingsForm extends Component {
                 <Toggle field={form.$('enableSystemTray')} />
                 <Toggle field={form.$('reloadAfterResume')} />
                 <Toggle field={form.$('startMinimized')} />
-                {process.platform === 'win32' && (
+                {isWindows && (
                   <Toggle field={form.$('minimizeToSystemTray')} />
                 )}
+                {isWindows && (
+                  <Toggle field={form.$('closeToSystemTray')} />
+                )}
                 <Toggle field={form.$('privateNotifications')} />
+                {(isWindows || isMac) && (
+                  <Toggle field={form.$('notifyTaskBarOnMessage')} />)}
                 <Select field={form.$('navigationBarBehaviour')} />
 
                 <Hr />
@@ -334,7 +365,7 @@ export default @observer class EditSettingsForm extends Component {
 
                 <Hr />
 
-                {isTodosEnabled && (
+                {isTodosEnabled && !hasAddedTodosAsService && (
                   <>
                     <Toggle field={form.$('enableTodos')} />
                     {isTodosActivated && (
@@ -468,8 +499,8 @@ export default @observer class EditSettingsForm extends Component {
 
                 <Hr />
 
-                {(isMac || isWindows) && <Toggle field={form.$('adaptableDarkMode')} />}
-                {!((isMac || isWindows) && isAdaptableDarkModeEnabled) && <Toggle field={form.$('darkMode')} />}
+                <Toggle field={form.$('adaptableDarkMode')} />
+                {!isAdaptableDarkModeEnabled && <Toggle field={form.$('darkMode')} />}
                 {(isDarkmodeEnabled || isAdaptableDarkModeEnabled) && (
                 <>
                   <Toggle field={form.$('universalDarkMode')} />
@@ -490,6 +521,11 @@ export default @observer class EditSettingsForm extends Component {
 
                 <Select field={form.$('serviceRibbonWidth')} />
 
+                <Toggle field={form.$('useVerticalStyle')} />
+
+                <Toggle field={form.$('alwaysShowWorkspaces')} />
+
+                <Hr />
                 <Select field={form.$('iconSize')} />
 
                 <Hr />
@@ -499,7 +535,10 @@ export default @observer class EditSettingsForm extends Component {
                   onChange={e => this.submit(e)}
                   field={form.$('accentColor')}
                 />
-                <p>{intl.formatMessage(messages.accentColorInfo)}</p>
+                <p>
+                  {intl.formatMessage(messages.accentColorInfo,
+                    { defaultAccentColor: DEFAULT_APP_SETTINGS.accentColor })}
+                </p>
               </div>
             )}
 
@@ -518,8 +557,11 @@ export default @observer class EditSettingsForm extends Component {
                     <Toggle
                       field={form.$('enableSpellchecking')}
                     />
-                    {form.$('enableSpellchecking').value && (
-                    <Select field={form.$('spellcheckerLanguage')} />
+                    {!isMac && form.$('enableSpellchecking').value && (
+                      <Select field={form.$('spellcheckerLanguage')} />
+                    )}
+                    {isMac && form.$('enableSpellchecking').value && (
+                      <p>{intl.formatMessage(messages.spellCheckerLanguageInfo)}</p>
                     )}
                   </Fragment>
                 </PremiumFeatureContainer>
@@ -565,16 +607,6 @@ export default @observer class EditSettingsForm extends Component {
                       loaded={!isClearingAllCache}
                     />
                   </p>
-                  <div style={{
-                    marginTop: 20,
-                  }}
-                  >
-                    <Button
-                      buttonType="secondary"
-                      label="Open Process Manager"
-                      onClick={openProcessManager}
-                    />
-                  </div>
                 </div>
               </div>
             )}
@@ -586,6 +618,15 @@ export default @observer class EditSettingsForm extends Component {
               {automaticUpdates && (
               <div>
                 <Toggle field={form.$('beta')} />
+                <ToggleRaw
+                  field={{
+                    value: isNightlyEnabled,
+                    id: 'nightly',
+                    label: 'Include nightly versions',
+                    name: 'Nightly builds',
+                  }}
+                  onChange={window.ferdi.features.nightlyBuilds.toggleFeature}
+                />
                 {updateIsReadyToInstall ? (
                   <Button
                     label={intl.formatMessage(messages.buttonInstallUpdate)}
@@ -596,7 +637,7 @@ export default @observer class EditSettingsForm extends Component {
                     buttonType="secondary"
                     label={intl.formatMessage(updateButtonLabelMessage)}
                     onClick={checkForUpdates}
-                    disabled={!automaticUpdates || isCheckingForUpdates || isUpdateAvailable}
+                    disabled={!automaticUpdates || isCheckingForUpdates || isUpdateAvailable || !isOnline}
                     loaded={!isCheckingForUpdates || !isUpdateAvailable}
                   />
                 )}
