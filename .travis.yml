@@ -40,7 +40,7 @@ before_install:
   - git submodule update --init --recursive
   - |
     if [ $TRAVIS_BRANCH == "nightly" ]; then
-      git remote add source https://${GH_TOKEN}@github.com/getferdi/ferdi.git > /dev/null 2>&1
+      git remote add source https://${GH_TOKEN}@github.com/arioki1/ferdi.git > /dev/null 2>&1
       git fetch source
       git merge --no-ff --commit -m "Merge remote-tracking branch 'source/develop' into HEAD [skip ci]" source/develop
       CHANGES_COUNT=$(git diff --stat HEAD origin/nightly | wc -l)
@@ -68,13 +68,13 @@ script:
   - |
     echo "Building for branch: $TRAVIS_BRANCH"
     if [ $TRAVIS_BRANCH == "release" ]; then
-      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=getferdi -c.publish.repo=ferdi -c.mac.identity=null || travis_terminate 1
+      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=arioki1 -c.publish.repo=ferdi -c.mac.identity=null || travis_terminate 1
     elif [ $TRAVIS_BRANCH == "nightly" ]; then
       git commit -am "Apply linter fixes [skip ci]"
       npm version prerelease --preid=nightly -m "%s and trigger AppVeyor nightly build [skip travisci]" || travis_terminate 1
-      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=getferdi -c.publish.repo=nightlies || travis_terminate 1
+      travis_retry travis_wait 100 npm run build -- --publish always -c.publish.provider=github -c.publish.owner=arioki1 -c.publish.repo=nightlies || travis_terminate 1
       if [ $TRAVIS_OS_NAME == "osx" ]; then
-        git remote add nightly https://${GH_TOKEN}@github.com/getferdi/ferdi.git > /dev/null 2>&1
+        git remote add nightly https://${GH_TOKEN}@github.com/arioki1/ferdi.git > /dev/null 2>&1
         git push -qu nightly HEAD:nightly >/dev/null 2>&1
       fi
     else
