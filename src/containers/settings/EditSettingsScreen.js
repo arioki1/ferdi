@@ -1,4 +1,3 @@
-import { ipcRenderer } from 'electron';
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { inject, observer } from 'mobx-react';
@@ -25,6 +24,7 @@ import globalMessages from '../../i18n/globalMessages';
 import { DEFAULT_IS_FEATURE_ENABLED_BY_USER } from '../../features/todos';
 import WorkspacesStore from '../../features/workspaces/store';
 import { DEFAULT_SETTING_KEEP_ALL_WORKSPACES_LOADED } from '../../features/workspaces';
+import ServicesStore from '../../stores/ServicesStore';
 
 const messages = defineMessages({
   autoLaunchOnStart: {
@@ -54,6 +54,10 @@ const messages = defineMessages({
   minimizeToSystemTray: {
     id: 'settings.app.form.minimizeToSystemTray',
     defaultMessage: '!!!Minimize Ferdi to system tray',
+  },
+  closeToSystemTray: {
+    id: 'settings.app.form.closeToSystemTray',
+    defaultMessage: '!!!Close Ferdi to system tray',
   },
   privateNotifications: {
     id: 'settings.app.form.privateNotifications',
@@ -233,6 +237,7 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         reloadAfterResume: settingsData.reloadAfterResume,
         startMinimized: settingsData.startMinimized,
         minimizeToSystemTray: settingsData.minimizeToSystemTray,
+        closeToSystemTray: settingsData.closeToSystemTray,
         privateNotifications: settingsData.privateNotifications,
         notifyTaskBarOnMessage: settingsData.notifyTaskBarOnMessage,
         navigationBarBehaviour: settingsData.navigationBarBehaviour,
@@ -262,7 +267,7 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         showMessageBadgeWhenMuted: settingsData.showMessageBadgeWhenMuted,
         showDragArea: settingsData.showDragArea,
         enableSpellchecking: settingsData.enableSpellchecking,
-        spellcheckerLanguage: JSON.stringify(settingsData.spellcheckerLanguage),
+        spellcheckerLanguage: settingsData.spellcheckerLanguage,
         beta: settingsData.beta, // we need this info in the main process as well
         automaticUpdates: settingsData.automaticUpdates, // we need this info in the main process as well
         locale: settingsData.locale, // we need this info in the main process as well
@@ -290,10 +295,6 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
         todosActions.toggleTodosFeatureVisibility();
       }
     }
-  }
-
-  openProcessManager() {
-    ipcRenderer.send('openProcessManager');
   }
 
   prepareForm() {
@@ -373,6 +374,11 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           label: intl.formatMessage(messages.minimizeToSystemTray),
           value: settings.all.app.minimizeToSystemTray,
           default: DEFAULT_APP_SETTINGS.minimizeToSystemTray,
+        },
+        closeToSystemTray: {
+          label: intl.formatMessage(messages.closeToSystemTray),
+          value: settings.all.app.closeToSystemTray,
+          default: DEFAULT_APP_SETTINGS.closeToSystemTray,
         },
         privateNotifications: {
           label: intl.formatMessage(messages.privateNotifications),
@@ -577,10 +583,10 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
       app,
       todos,
       workspaces,
+      services,
     } = this.props.stores;
     const {
       updateStatus,
-      cacheSize,
       updateStatusTypes,
       isClearingAllCache,
       lockingFeatureEnabled,
@@ -603,7 +609,7 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           noUpdateAvailable={updateStatus === updateStatusTypes.NOT_AVAILABLE}
           updateIsReadyToInstall={updateStatus === updateStatusTypes.DOWNLOADED}
           onSubmit={d => this.onSubmit(d)}
-          cacheSize={cacheSize}
+          getCacheSize={() => app.cacheSize}
           isClearingAllCache={isClearingAllCache}
           onClearAllCache={clearAllCache}
           isSpellcheckerIncludedInCurrentPlan={spellcheckerConfig.isIncludedInCurrentPlan}
@@ -617,7 +623,8 @@ export default @inject('stores', 'actions') @observer class EditSettingsScreen e
           isTodosActivated={this.props.stores.todos.isFeatureEnabledByUser}
           isUsingCustomTodoService={this.props.stores.todos.isUsingCustomTodoService}
           isNightlyEnabled={this.props.stores.settings.app.nightly}
-          openProcessManager={() => this.openProcessManager()}
+          hasAddedTodosAsService={services.isTodosServiceAdded}
+          isOnline={app.isOnline}
         />
       </ErrorBoundary>
     );
@@ -629,6 +636,7 @@ EditSettingsScreen.wrappedComponent.propTypes = {
     app: PropTypes.instanceOf(AppStore).isRequired,
     user: PropTypes.instanceOf(UserStore).isRequired,
     settings: PropTypes.instanceOf(SettingsStore).isRequired,
+    services: PropTypes.instanceOf(ServicesStore).isRequired,
     todos: PropTypes.instanceOf(TodosStore).isRequired,
     workspaces: PropTypes.instanceOf(WorkspacesStore).isRequired,
   }).isRequired,

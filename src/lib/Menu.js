@@ -1,7 +1,9 @@
 import { clipboard, remote, shell } from 'electron';
 import { autorun, observable } from 'mobx';
 import { defineMessages } from 'react-intl';
-import { cmdKey, ctrlKey, isMac } from '../environment';
+import {
+  cmdKey, ctrlKey, isLinux, isMac,
+} from '../environment';
 import { announcementsStore } from '../features/announcements';
 import { announcementActions } from '../features/announcements/actions';
 import { todosStore } from '../features/todos';
@@ -9,6 +11,10 @@ import { todoActions } from '../features/todos/actions';
 import { CUSTOM_WEBSITE_ID } from '../features/webControls/constants';
 import { workspaceActions } from '../features/workspaces/actions';
 import { workspaceStore } from '../features/workspaces/index';
+import * as buildInfo from '../buildInfo.json'; // eslint-disable-line import/no-unresolved
+import { ferdiVersion } from '../helpers/userAgent-helpers';
+
+const osName = require('os-name');
 
 const {
   app, Menu, dialog, systemPreferences,
@@ -138,6 +144,10 @@ const menuItems = defineMessages({
   lockFerdi: {
     id: 'menu.view.lockFerdi',
     defaultMessage: '!!!Lock Ferdi',
+  },
+  reloadTodos: {
+    id: 'menu.view.reloadTodos',
+    defaultMessage: '!!!Reload ToDos',
   },
   minimize: {
     id: 'menu.window.minimize',
@@ -865,8 +875,8 @@ export default class FranzMenu {
           label: intl.formatMessage(menuItems.toggleTodosDevTools),
           accelerator: `${cmdKey}+Shift+Alt+O`,
           click: () => {
-            const webview = document.querySelector('webview[partition="persist:todos"]');
-            if (webview) webview.openDevTools();
+            const webview = document.querySelector('#todos-panel webview');
+            if (webview) this.actions.todos.openDevTools();
           },
         });
       }
@@ -894,6 +904,12 @@ export default class FranzMenu {
           window.location.reload();
         },
       }, {
+        label: intl.formatMessage(menuItems.reloadTodos),
+        accelerator: `${cmdKey}+Shift+Alt+R`,
+        click: () => {
+          this.actions.todos.reload();
+        },
+      }, {
         type: 'separator',
       }, {
         label: intl.formatMessage(menuItems.lockFerdi),
@@ -910,15 +926,15 @@ export default class FranzMenu {
       });
 
       if (serviceTpl.length > 0) {
-        tpl[3].submenu = serviceTpl;
+        tpl[2].submenu = serviceTpl;
       }
 
       if (workspaceStore.isFeatureEnabled) {
-        tpl[4].submenu = this.workspacesMenu();
+        tpl[3].submenu = this.workspacesMenu();
       }
 
       if (todosStore.isFeatureEnabled) {
-        tpl[5].submenu = this.todosMenu();
+        tpl[4].submenu = this.todosMenu();
       }
     } else {
       const touchIdEnabled = isMac ? (this.stores.settings.app.useTouchIdToUnlock && systemPreferences.canPromptTouchID()) : false;
@@ -1014,7 +1030,7 @@ export default class FranzMenu {
           type: 'info',
           title: 'Franz Ferdinand',
           message: 'Ferdi',
-          detail: `Version: ${remote.app.getVersion()} (${process.arch})\nElectron: ${process.versions.electron}\nNode.js: ${process.version}\nPlatform: ${process.platform}`,
+          detail: `Version: ${ferdiVersion}\nElectron: ${process.versions.electron}\nNode.js: ${process.version}\nPlatform: ${osName()}\nArch: ${process.arch}\nBuild date: ${new Date(Number(buildInfo.timestamp))}\nGit SHA: ${buildInfo.gitHashShort}\nGit branch: ${buildInfo.gitBranch}`,
         });
       },
     };
@@ -1099,6 +1115,7 @@ export default class FranzMenu {
     const { user, services, settings } = this.stores;
     if (!user.isLoggedIn) return [];
     const menu = [];
+    const cmdAltShortcutsVisibile = !isLinux;
 
     menu.push({
       label: intl.formatMessage(menuItems.addNewService),
@@ -1110,12 +1127,24 @@ export default class FranzMenu {
       type: 'separator',
     }, {
       label: intl.formatMessage(menuItems.activateNextService),
+      accelerator: `${cmdKey}+tab`,
+      click: () => this.actions.service.setActiveNext(),
+      visible: !cmdAltShortcutsVisibile,
+    }, {
+      label: intl.formatMessage(menuItems.activateNextService),
       accelerator: `${cmdKey}+alt+right`,
       click: () => this.actions.service.setActiveNext(),
+      visible: cmdAltShortcutsVisibile,
+    }, {
+      label: intl.formatMessage(menuItems.activatePreviousService),
+      accelerator: `${cmdKey}+shift+tab`,
+      click: () => this.actions.service.setActivePrev(),
+      visible: !cmdAltShortcutsVisibile,
     }, {
       label: intl.formatMessage(menuItems.activatePreviousService),
       accelerator: `${cmdKey}+alt+left`,
       click: () => this.actions.service.setActivePrev(),
+      visible: cmdAltShortcutsVisibile,
     }, {
       label: intl.formatMessage(
         settings.all.app.isAppMuted ? menuItems.unmuteApp : menuItems.muteApp,

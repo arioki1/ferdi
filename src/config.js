@@ -2,6 +2,7 @@ import electron from 'electron';
 import isDevMode from 'electron-is-dev';
 import ms from 'ms';
 import path from 'path';
+import { DEFAULT_ACCENT_COLOR } from '@meetfranz/theme';
 import { asarPath } from './helpers/asar-helpers';
 
 const app = process.type === 'renderer' ? electron.remote.app : electron.app;
@@ -31,7 +32,7 @@ export const LOCAL_TODOS_FRONTEND_URL = 'http://localhost:4000';
 export const PRODUCTION_TODOS_FRONTEND_URL = 'https://app.franztodos.com';
 export const DEVELOPMENT_TODOS_FRONTEND_URL = 'https://development--franz-todos.netlify.com';
 
-export const GA_ID = !isDevMode ? 'UA-74126766-10' : 'UA-74126766-12';
+export const CDN_URL = 'https://cdn.franzinfra.com';
 
 export const KEEP_WS_LOADED_USID = '0a0aa000-0a0a-49a0-a000-a0a0a0a0a0a0';
 
@@ -93,13 +94,14 @@ export const DEFAULT_APP_SETTINGS = {
   enableSystemTray: true,
   startMinimized: false,
   minimizeToSystemTray: false,
+  closeToSystemTray: false,
   privateNotifications: false,
   notifyTaskBarOnMessage: false,
   showDisabledServices: true,
   showMessageBadgeWhenMuted: true,
   showDragArea: false,
   enableSpellchecking: true,
-  spellcheckerLanguage: '["en-US"]',
+  spellcheckerLanguage: 'en-us',
   darkMode: process.platform === 'darwin' ? nativeTheme.shouldUseDarkColors : false, // We can't use refs from `./environment` at this time
   locale: '',
   fallbackLocale: 'en-US',
@@ -127,7 +129,7 @@ export const DEFAULT_APP_SETTINGS = {
   showServiceNavigationBar: false,
   universalDarkMode: true,
   adaptableDarkMode: true,
-  accentColor: '#7266F0',
+  accentColor: DEFAULT_ACCENT_COLOR,
   serviceRibbonWidth: 68,
   iconSize: iconSizeBias,
   sentry: false,
@@ -171,6 +173,7 @@ export const FILE_SYSTEM_SETTINGS_TYPES = [
 export const LOCAL_SERVER = 'You are using Ferdi without a server';
 export const SERVER_NOT_LOADED = 'Ferdi::SERVER_NOT_LOADED';
 
+// TODO: This seems to be duplicated between here and 'index.js'
 // Set app directory before loading user modules
 if (process.env.FERDI_APPDATA_DIR != null) {
   app.setPath('appData', process.env.FERDI_APPDATA_DIR);
@@ -183,6 +186,10 @@ if (process.env.FERDI_APPDATA_DIR != null) {
   app.setPath('userData', path.join(app.getPath('appData'), app.name));
 }
 
+if (isDevMode) {
+  app.setPath('userData', path.join(app.getPath('appData'), `${app.name}Dev`));
+}
+
 export const SETTINGS_PATH = path.join(app.getPath('userData'), 'config');
 
 // Replacing app.asar is not beautiful but unfortunately necessary
@@ -192,6 +199,7 @@ export const ALLOWED_PROTOCOLS = [
   'https:',
   'http:',
   'ftp:',
+  'franz:',
 ];
 
 export const PLANS = {

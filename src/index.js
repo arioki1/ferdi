@@ -9,7 +9,10 @@ import isDevMode from 'electron-is-dev';
 import fs from 'fs-extra';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
+import { enforceMacOSAppLocation } from 'electron-util';
+import ms from 'ms';
 
+// TODO: This seems to be duplicated between here and 'config.js'
 // Set app directory before loading user modules
 if (process.env.FERDI_APPDATA_DIR != null) {
   app.setPath('appData', process.env.FERDI_APPDATA_DIR);
@@ -39,8 +42,9 @@ import DBus from './lib/DBus';
 import Settings from './electron/Settings';
 import handleDeepLink from './electron/deepLinking';
 import { isPositionValid } from './electron/windowUtils';
-// import askFormacOSPermissions from './electron/macOSPermissions';
+import askFormacOSPermissions from './electron/macOSPermissions';
 import { appId } from './package.json'; // eslint-disable-line import/no-unresolved
+import * as buildInfo from './buildInfo.json'; // eslint-disable-line import/no-unresolved
 import './electron/exception';
 
 import {
@@ -49,18 +53,15 @@ import {
 } from './config';
 import { asarPath } from './helpers/asar-helpers';
 import { isValidExternalURL } from './helpers/url-helpers';
-import userAgent from './helpers/userAgent-helpers';
+import userAgent, { ferdiVersion } from './helpers/userAgent-helpers';
 
+const osName = require('os-name');
 const debug = require('debug')('Ferdi:App');
 
 // From Electron 9 onwards, app.allowRendererProcessReuse = true by default. This causes the app to crash on Windows due to the
 // Electron Windows Notification API crashing. Setting this to false fixes the issue until the electron team fixes the notification bug
 // More Info - https://github.com/electron/electron/issues/18397
-if (isWindows) {
-  app.allowRendererProcessReuse = false;
-}
-
-
+app.allowRendererProcessReuse = false;
 
 // Globally set useragent to fix user agent override in service workers
 debug('Set userAgent to ', userAgent());
@@ -111,7 +112,9 @@ if (!gotTheLock) {
   app.on('second-instance', (event, argv) => {
     // Someone tried to run a second instance, we should focus our window.
     if (mainWindow) {
-      mainWindow.show();
+      if (!mainWindow.isVisible()) {
+        mainWindow.show();
+      }
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
@@ -157,6 +160,11 @@ if (!settings.get('enableGPUAcceleration')) {
   app.disableHardwareAcceleration();
 }
 
+app.setAboutPanelOptions({
+  applicationVersion: `Version: ${ferdiVersion}\nElectron: ${process.versions.electron}\nNode.js: ${process.version}\nPlatform: ${osName()}\nArch: ${process.arch}\nBuild date: ${new Date(Number(buildInfo.timestamp))}\nGit SHA: ${buildInfo.gitHashShort}\nGit branch: ${buildInfo.gitBranch}`,
+  version: '',
+});
+
 const createWindow = () => {
   // Remember window size
   const mainWindowState = windowStateKeeper({
@@ -176,12 +184,7 @@ const createWindow = () => {
   }
 
   // Create the browser window.
-  let backgroundColor = '#7266F0';
-  if (settings.get('accentColor') !== '#7266F0') {
-    backgroundColor = settings.get('accentColor');
-  } else if (settings.get('darkMode')) {
-    backgroundColor = '#1E1E1E';
-  }
+  const backgroundColor = settings.get('darkMode') ? '#1E1E1E' : settings.get('accentColor');
 
   mainWindow = new BrowserWindow({
     x: posX,
@@ -196,6 +199,7 @@ const createWindow = () => {
     backgroundColor,
     webPreferences: {
       nodeIntegration: true,
+      contextIsolation: false,
       webviewTag: true,
       preload: path.join(__dirname, 'sentry.js'),
       enableRemoteModule: true,
@@ -213,10 +217,11 @@ const createWindow = () => {
   mainWindow.webContents.on('did-finish-load', () => {
     const fns = onDidLoadFns;
     onDidLoadFns = null;
-    if (fns) {
-      for (const fn of fns) { // eslint-disable-line no-unused-vars
-        fn(mainWindow);
-      }
+
+    if (!fns) return;
+
+    for (const fn of fns) {
+      fn(mainWindow);
     }
   });
 
@@ -272,7 +277,7 @@ const createWindow = () => {
         debug('Window: minimize');
         mainWindow.minimize();
 
-        if (settings.get('minimizeToSystemTray')) {
+        if (settings.get('closeToSystemTray')) {
           debug('Skip taskbar: true');
           mainWindow.setSkipTaskbar(true);
         }
@@ -323,10 +328,9 @@ const createWindow = () => {
     }
   });
 
-  // Asking for permissions like this currently crashes Ferdi
-  // if (isMac) {
-  //   askFormacOSPermissions();
-  // }
+  if (isMac) {
+    setTimeout(() => askFormacOSPermissions(mainWindow), ms('30s'));
+  }
 
   mainWindow.on('show', () => {
     debug('Skip taskbar: true');
@@ -367,12 +371,16 @@ if (argv['auth-negotiate-delegate-whitelist']) {
 }
 
 // Disable Chromium's poor MPRIS implementation
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService');
+// and apply workaround for https://github.com/electron/electron/pull/26432
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService,CrossOriginOpenerPolicy');
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
+  // force app to live in /Applications
+  enforceMacOSAppLocation();
+
   // Register App URL
   app.setAsDefaultProtocolClient('ferdi');
 
@@ -380,7 +388,7 @@ app.on('ready', () => {
     app.setAsDefaultProtocolClient('ferdi-dev');
   }
 
-  if (process.platform === 'win32') {
+  if (isWindows) {
     app.setUserTasks([{
       program: process.execPath,
       arguments: `${isDevMode ? `${__dirname} ` : ''}--reset-window`,
@@ -481,6 +489,12 @@ app.on('activate', () => {
   } else {
     mainWindow.show();
   }
+});
+
+app.on('web-contents-created', (createdEvent, contents) => {
+  contents.on('new-window', (event, url, frameNme, disposition) => {
+    if (disposition === 'foreground-tab') event.preventDefault();
+  });
 });
 
 app.on('will-finish-launching', () => {
