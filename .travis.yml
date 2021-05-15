@@ -16,6 +16,10 @@ matrix:
         - ELECTRON_BUILDER_CACHE=$HOME/.cache/electron-builder
     - os: osx
       osx_image: xcode12.4
+      arch:
+        - amd64
+        - arm64 
+        - 
       env:
         - ELECTRON_CACHE=$HOME/.cache/electron
         - ELECTRON_BUILDER_CACHE=$HOME/.cache/electron-builder
